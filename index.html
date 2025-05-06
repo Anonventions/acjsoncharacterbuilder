@@ -1,148 +1,109 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JSON Builder</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-            background-color: #121212;
-            color: #e0e0e0;
-        }
-        .container {
-            max-width: 800px;
-            margin: auto;
-            padding: 20px;
-            background: #1e1e1e;
-            border-radius: 8px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
-        }
-        h1 {
-            text-align: center;
-        }
-        label {
-            font-weight: bold;
-            margin-top: 10px;
-            display: block;
-        }
-        input, textarea, select {
-            width: 100%;
-            margin-top: 5px;
-            padding: 8px;
-            background-color: #2b2b2b;
-            color: #e0e0e0;
-            border: 1px solid #444;
-            border-radius: 4px;
-        }
-        button {
-            margin-top: 15px;
-            padding: 10px 15px;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        button:hover {
-            background-color: #0056b3;
-        }
-        .output {
-            margin-top: 20px;
-            padding: 10px;
-            background: #2b2b2b;
-            border: 1px solid #444;
-            border-radius: 4px;
-        }
-        .questions-container {
-            margin-top: 10px;
-        }
-    </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Minecraft Skin Colour Studio v5 (ESM)</title>
+<!--
+  * All‑ESM build — no deprecated build/three.js scripts
+  * SkinView3D + Three.js imported via <script type="module"> and import maps
+  * Fully client‑side: recolour with preserved shading, Alex⇄Steve convert, 3‑D preview, ZIP export
+-->
+<style>
+:root{--bg:#141617;--panel:#232323ee;--accent:#3ecc3e;--accent-dk:#2d9e2d;--text:#ececec;--border:#454545;font-family:"Inter",system-ui,sans-serif}
+*{box-sizing:border-box;margin:0}
+html,body{height:100%;background:var(--bg);color:var(--text)}
+header{padding:1.4rem 1rem;text-align:center;background:linear-gradient(180deg,var(--panel),transparent);border-bottom:1px solid var(--border)}
+h1{font-size:1.8rem;text-transform:uppercase;letter-spacing:2px;margin-bottom:.25rem}
+main{max-width:1200px;margin:auto;padding:1.4rem 1rem}
+small{opacity:.7;font-size:.75rem}
+.controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1rem;background:var(--panel);padding:1rem;border:1px solid var(--border);border-radius:.6rem;backdrop-filter:blur(6px)}
+.controls label{display:flex;flex-direction:column;gap:.4rem;font-size:.85rem;font-weight:600}
+.controls input[type=file]{padding:.7rem;border:2px dashed var(--accent);border-radius:.4rem;background:transparent;text-align:center;color:var(--text);cursor:pointer}
+.controls input[type=file]:hover{border-color:var(--accent-dk)}
+.controls input[type=color],.controls input[type=range],.controls select{width:100%;height:2.3rem;border:none;border-radius:.35rem;background:#111;color:var(--text);padding:0 .5rem;cursor:pointer}
+.controls input[type=range]{appearance:none;background:var(--border)}
+.controls input[type=range]::-webkit-slider-thumb{appearance:none;width:14px;height:14px;border-radius:50%;background:var(--accent);border:none}
+.btn{grid-column:1/-1;margin-top:.3rem;padding:.85rem;font-weight:700;border:none;border-radius:.4rem;background:var(--accent);color:var(--text);cursor:pointer;transition:background .15s,transform .1s}
+.btn:not(:disabled):hover{background:var(--accent-dk)}
+.btn:not(:disabled):active{transform:scale(.97)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+#progress{grid-column:1/-1;height:8px;background:#2b2b2b;border-radius:4px;overflow:hidden;visibility:hidden}
+#progress>div{height:100%;width:0;background:linear-gradient(90deg,var(--accent) 0,var(--accent-dk) 100%);transition:width .3s}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:1rem;margin-top:1.6rem}
+.card{background:var(--panel);padding:.6rem;border:1px solid var(--border);border-radius:.4rem;display:flex;flex-direction:column;align-items:center;gap:.45rem}
+.viewer{width:150px;height:200px}
+.filename{font-size:.7rem;text-align:center;word-break:break-all;opacity:.82}
+</style>
+
+<!-- import map to alias three → module build -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.161.0/build/three.module.js"
+  }
+}
+</script>
+<!-- JSZip (stand‑alone, still UMD) -->
+<script defer src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+
+<!-- Main module -->
+<script type="module">
+import { SkinViewer, createOrbitControls, WalkingAnimation } from "https://unpkg.com/skinview3d@3.4.0/dist/skinview3d.es.js";
+import * as THREE from "three"; // resolved via importmap
+window.THREE = THREE; // SkinView3D still expects global THREE inside; set shim
+
+/* ===== Helper funcs ===== */
+const enc=new TextEncoder();
+const CRC_TABLE=(()=>{let t=[];for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=(c&1)?0xEDB88320^(c>>>1):c>>>1;t[n]=c;}return t})();
+const crc32=u8=>{let crc=-1;for(let i=0;i<u8.length;i++)crc=(crc>>>8)^CRC_TABLE[(crc^u8[i])&255];return(crc^-1)>>>0;};
+const hexToRgb=h=>[parseInt(h.substr(1,2),16),parseInt(h.substr(3,2),16),parseInt(h.substr(5,2),16)];
+
+function tagColour(buf,hex){const d=new Uint8Array(buf),iend=d.lastIndexOf(73);if(iend===-1)return buf;const key=enc.encode('colour'),val=enc.encode(hex);const txt=new Uint8Array(key.length+1+val.length);txt.set(key);txt[key.length]=0;txt.set(val,key.length+1);const len=txt.length,chunk=new Uint8Array(12+len);chunk[0]=len>>>24;chunk[1]=len>>>16;chunk[2]=len>>>8;chunk[3]=len;chunk.set([0x74,0x45,0x58,0x74],4);chunk.set(txt,8);const crc=crc32(chunk.subarray(4,8+len));chunk[8+len]=crc>>>24;chunk[9+len]=crc>>>16;chunk[10+len]=crc>>>8;chunk[11+len]=crc;const out=new Uint8Array(d.length+chunk.length);out.set(d.subarray(0,iend-4));out.set(chunk,d.subarray(0,iend-4).length);out.set(d.subarray(iend-4),d.subarray(0,iend-4).length+chunk.length);return out.buffer;}
+
+/* ==== Alex vs Steve detection === */
+function detectModel(cv){const ctx=cv.getContext('2d',{willReadFrequently:true});const s=cv.width/64;const testCol=Math.floor(54*s);const armY=Math.floor(20*s);const h=Math.floor(12*s), data=ctx.getImageData(testCol,armY,1,h).data;for(let i=3;i<data.length;i+=4) if(data[i]) return 'steve';return 'alex';}
+
+/* ==== Model conversion === */
+function convertSkin(srcCv,target){const from=detectModel(srcCv);if(target==='auto'||from===target) return srcCv;const scale=srcCv.width/64, cv=document.createElement('canvas');cv.width=srcCv.width;cv.height=srcCv.height;const sctx=srcCv.getContext('2d'), dctx=cv.getContext('2d');dctx.imageSmoothingEnabled=false;dctx.drawImage(srcCv,0,0);const rw=from==='steve'?4:3, tw=target==='steve'?4:3;const rects=[[40,20,4,12],[32,52,4,12],[40,36,4,12],[32,20,4,12]];rects.forEach(([x,y,w,h])=>{const sx=x*scale,sy=y*scale,sw=rw*scale,sh=h*scale;const img=sctx.getImageData(sx,sy,sw,sh);const tmp=document.createElement('canvas');tmp.width=sw;tmp.height=sh;tmp.getContext('2d').putImageData(img,0,0);dctx.clearRect(sx,sy,sw,sh);dctx.drawImage(tmp,0,0,sw,sh,sx,sy,tw*scale,sh);if(target==='steve'){dctx.drawImage(tmp,(rw-1)*scale,0,scale,sh,sx+tw*scale-scale,sy,scale,sh);} });return cv;}
+
+/* ==== Shading / recolour === */
+function recolourSkin(img,hex,mode,inten){const cv=document.createElement('canvas');cv.width=img.width;cv.height=img.height;const ctx=cv.getContext('2d');ctx.drawImage(img,0,0);if(mode!=='gamma'){ctx.globalCompositeOperation=mode;ctx.globalAlpha=Math.min(inten,1);ctx.fillStyle=hex;ctx.fillRect(0,0,cv.width,cv.height);ctx.globalCompositeOperation='source-over';return cv;}const rgb=hexToRgb(hex), id=ctx.getImageData(0,0,cv.width,cv.height), p=id.data;for(let i=0;i<p.length;i+=4){if(!p[i+3])continue;const lum=(0.2126*p[i]+0.7152*p[i+1]+0.0722*p[i+2])/255;const s=Math.pow(lum,inten);p[i]=rgb[0]*s;p[i+1]=rgb[1]*s;p[i+2]=rgb[2]*s;}ctx.putImageData(id,0,0);return cv;}
+
+/* ==== I/O ==== */
+function loadImage(src){return new Promise(r=>{const i=new Image();i.onload=()=>r(i);i.src=src;});}
+function canvasToBlob(cv,hex){return new Promise(res=>cv.toBlob(async b=>{const buf=await b.arrayBuffer();res(new Blob([tagColour(buf,hex)],{type:'image/png'}));}));}
+
+/* ==== DOM === */
+const ui={file:document.getElementById('fileInput'), colour:document.getElementById('colourPicker'), mode:document.getElementById('modeSelect'), intensity:document.getElementById('intensityRange'), model:document.getElementById('modelSelect'), grid:document.getElementById('previewGrid'), btn:document.getElementById('downloadBtn'), bar:document.querySelector('#progress>div'), wrap:document.getElementById('progress')};
+['input','change'].forEach(evt=>{ui.colour.addEventListener(evt,reprocess);ui.mode.addEventListener(evt,reprocess);ui.intensity.addEventListener(evt,reprocess);ui.model.addEventListener(evt,reprocess);});
+ui.file.addEventListener('change',()=>process([...ui.file.files]));
+let processed=[];
+async function process(files){ui.grid.innerHTML='';processed=[];if(!files.length){ui.btn.disabled=true;return;}ui.wrap.style.visibility='visible';ui.bar.style.width='0%';for(let i=0;i<files.length;i++){const f=files[i];if(!f.type.startsWith('image/png'))continue;const img=await loadImage(URL.createObjectURL(f));const tinted=recolourSkin(img,ui.colour.value,ui.mode.value,parseFloat(ui.intensity.value));const converted=convertSkin(tinted,ui.model.value);addCard(converted,f.name);const blob=await canvasToBlob(converted,ui.colour.value);processed.push({name:outName(f.name), blob});ui.bar.style.width=`${Math.round(((i+1)/files.length)*100)}%`;}
+ui.wrap.style.visibility='hidden';ui.btn.disabled=false;}
+function reprocess(){if(ui.file.files.length) process([...ui.file.files]);}
+function outName(n){return n.replace(/\.png$/i,'')+'_'+ui.colour.value.slice(1)+'.png';}
+
+/* ==== Preview ===== */
+function addCard(cv,name){const card=document.createElement('div');card.className='card';const viewerDiv=document.createElement('div');viewerDiv.className='viewer';const label=document.createElement('div');label.className='filename';label.textContent=name;card.append(viewerDiv,label);ui.grid.appendChild(card);const url=cv.toDataURL('image/png');const viewer=new SkinViewer({domElement:viewerDiv,width:viewerDiv.clientWidth,height:viewerDiv.clientHeight,skin:url});createOrbitControls(viewer);viewer.animation.add(WalkingAnimation);} 
+
+/* ==== ZIP download ==== */
+ui.btn.addEventListener('click',async()=>{const zip=new JSZip();await Promise.all(processed.map(async f=>zip.file(f.name,await f.blob.arrayBuffer())));const blob=await zip.generateAsync({type:'blob'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='edited_skins.zip';a.click();});
+</script>
 </head>
 <body>
-    <div class="container">
-        <h1>AC Character Application Creator</h1>
-        <form id="jsonForm">
-            <label for="name">Name:</label>
-            <input type="text" id="name" placeholder="Enter the name">
-
-            <label for="image">Image URL:</label>
-            <input type="text" id="image" placeholder="Enter the image URL">
-
-            <label for="autoRoleId">Auto Role ID:</label>
-            <input type="number" id="autoRoleId" placeholder="Enter the auto role ID">
-
-            <label for="questions">Questions:</label>
-            <div id="questionsContainer" class="questions-container"></div>
-            <button type="button" onclick="addQuestion()">Add Question</button>
-
-            <label for="scenarioTitle">Scenario Title:</label>
-            <input type="text" id="scenarioTitle" placeholder="Enter the scenario title">
-
-            <label for="scenarioDescription">Scenario Description:</label>
-            <textarea id="scenarioDescription" placeholder="Enter the scenario description"></textarea>
-
-            <label for="scenarioUltimatum">Scenario Ultimatum:</label>
-            <textarea id="scenarioUltimatum" placeholder="Enter the scenario ultimatum"></textarea>
-
-            <label for="scenarioAtmosphere">Scenario Atmosphere:</label>
-            <textarea id="scenarioAtmosphere" placeholder="Enter the scenario atmosphere"></textarea>
-
-            <label for="scenarioPrompt">Scenario Prompt:</label>
-            <textarea id="scenarioPrompt" placeholder="Enter the scenario prompt"></textarea>
-
-            <button type="button" onclick="downloadJSON()">Download JSON</button>
-        </form>
-    </div>
-
-    <script>
-        let questionCount = 0;
-
-        function addQuestion() {
-            questionCount++;
-            const questionsContainer = document.getElementById('questionsContainer');
-            const input = document.createElement('input');
-            input.type = 'text';
-            input.placeholder = `Enter question ${questionCount}`;
-            input.className = 'question';
-            questionsContainer.appendChild(input);
-        }
-
-        function downloadJSON() {
-            const name = document.getElementById('name').value;
-            const image = document.getElementById('image').value;
-            const autoRoleId = document.getElementById('autoRoleId').value;
-            const questionInputs = document.querySelectorAll('.question');
-
-            const questions = Array.from(questionInputs).map(input => input.value);
-
-            const scenario = {
-                title: document.getElementById('scenarioTitle').value,
-                description: document.getElementById('scenarioDescription').value,
-                ultimatum: document.getElementById('scenarioUltimatum').value,
-                atmosphere: document.getElementById('scenarioAtmosphere').value,
-                prompt: document.getElementById('scenarioPrompt').value
-            };
-
-            const jsonObject = {
-                name,
-                image,
-                auto_role_id: parseInt(autoRoleId),
-                questions,
-                scenario
-            };
-
-            const jsonString = JSON.stringify(jsonObject, null, 2);
-            const blob = new Blob([jsonString], { type: "application/json" });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${name || 'output'}.json`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-        }
-    </script>
+<header><h1>Skin Colour Studio</h1><small>Tune colour & shading • Alex⇄Steve • 3‑D preview</small></header>
+<main>
+  <section class="controls">
+    <label>Upload&nbsp;Skins<input id="fileInput" type="file" accept="image/png" multiple></label>
+    <label>Base Colour<input id="colourPicker" type="color" value="#3ecc3e"></label>
+    <label>Shading Mode<select id="modeSelect"><option value="gamma">Gamma</option><option value="multiply">Multiply</option><option value="overlay">Overlay</option></select></label>
+    <label>Intensity<input id="intensityRange" type="range" min="0.4" max="1.8" step="0.05" value="0.9"></label>
+    <label>Model<select id="modelSelect"><option value="auto">Auto</option><option value="alex">→ Alex</option><option value="steve">→ Steve</option></select></label>
+    <button id="downloadBtn" class="btn" disabled>Download ZIP</button>
+    <div id="progress"><div></div></div>
+  </section>
+  <section id="previewGrid" class="grid"></section>
+</main>
 </body>
 </html>
